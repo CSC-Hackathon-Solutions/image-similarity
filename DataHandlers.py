@@ -20,6 +20,8 @@ class ImageDataset(Dataset):
         
     def __len__(self):
         return len(self.data)
+    
+    def 
 
     def __getitem__(self, index):
         sample = self.data.iloc[index]
@@ -27,7 +29,7 @@ class ImageDataset(Dataset):
         path2 = sample['Path2']
         equal = sample['Equal']
         
-        image1 = Image.open(self.path + path1)
+        image1 = Image.open(self.path + path1)    
         image2 = Image.open(self.path + path2)
         
         equal = torch.tensor(equal)
@@ -36,6 +38,8 @@ class ImageDataset(Dataset):
             image2 = self.transform(image2)
         
         return image1, image2, equal
+
+    
 
 class InMemDataLoader(object):
     """
