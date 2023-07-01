@@ -1,0 +1,6 @@
+data/images/*
+__pycache__/  
+images.zip
+.DS_Store
+.ipynb_checkpoints/
+csc-hackathon-2023-lunua-task/
