@@ -13,31 +13,43 @@ import torchvision.transforms as T
 from torch.utils.data import DataLoader, Dataset
 
 class ImageDataset(Dataset):
-    def __init__(self, data, path='data/', transform=None):
+    def __init__(self, data, path='data/images', transform=None):
         self.data = data
         self.transform = transform
         self.path = path
         
     def __len__(self):
         return len(self.data)
-    
-    def 
 
     def __getitem__(self, index):
         sample = self.data.iloc[index]
-        path1 = sample['Path1']
-        path2 = sample['Path2']
-        equal = sample['Equal']
-        
-        image1 = Image.open(self.path + path1)    
-        image2 = Image.open(self.path + path2)
-        
-        equal = torch.tensor(equal)
+        name1 = sample['Name1']
+        name2 = sample['Name2']
+
+        image1 = Image.open(os.path.join(self.path, name1))
+        image2 = Image.open(os.path.join(self.path, name2))
+
+        # Convert images to RGB if they are not
+        if image1.mode != 'RGB':
+            image1 = image1.convert('RGB')
+        if image2.mode != 'RGB':
+            image2 = image2.convert('RGB')
+
         if self.transform is not None:
             image1 = self.transform(image1)
             image2 = self.transform(image2)
-        
-        return image1, image2, equal
+
+        if 'Equal' in sample:    
+            equal = sample['Equal']
+            equal = torch.tensor(equal)
+            return image1, image2, equal
+        elif 'ID' in sample:    
+            id_ = sample['ID']
+            id_ = torch.tensor(id_)
+            return image1, image2, id_
+        else:
+            assert(false)
+
 
     
 
