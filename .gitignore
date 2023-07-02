@@ -7,3 +7,5 @@ csc-hackathon-2023-lunua-task/
 .idea/
 .train_data_loader.py.swp
 data.zip
+scripts/parts/*
+urls/*
