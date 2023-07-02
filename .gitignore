@@ -4,3 +4,6 @@ images.zip
 .DS_Store
 .ipynb_checkpoints/
 csc-hackathon-2023-lunua-task/
+.idea/
+.train_data_loader.py.swp
+data.zip
