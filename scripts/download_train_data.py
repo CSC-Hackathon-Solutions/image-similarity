@@ -7,9 +7,9 @@ from tqdm.auto import tqdm
 from concurrent.futures import ThreadPoolExecutor
 import pandas as pd
 
-urls_path = 'csc-hackathon-2023-lunua-task/train.csv'
-save_path = 'data/images/'
-test_path = 'data/train.csv'
+urls_path = '../csc-hackathon-2023-lunua-task/train.csv'
+save_path = '../data/images/'
+test_path = '../data/train.csv'
 
 urls = pd.read_csv(urls_path)
 
