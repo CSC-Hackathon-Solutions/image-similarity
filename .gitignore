@@ -10,4 +10,4 @@ scripts/parts/*
 urls/*
 
 # Submit predictions
-.res.csv
+res.csv
