@@ -6,6 +6,7 @@ That is our attempt on solving the CSC Hackathon 2023 problem provided by LUN.UA
 |      Model      | Accuracy  |
 | :-------------: | :-------: |
 | `Threshold`     |  `0.971`  |
+| `ResNet50 Siamese ` |  `???`  |
 
 
 ## Brief model desciption 🔍
