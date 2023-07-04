@@ -98,7 +98,7 @@ def mislabeled(model, loader):
 """
     Saves predictions that should be submitted to kaggle.
 """
-def save_submission(model, loader, max_submit_id, path='res.csv'):
+def save_submission(model, loader, max_submit_id, path='submission.csv'):
     print(f'Started saving test predictions to {path}')
     ids = []
     preds = []
