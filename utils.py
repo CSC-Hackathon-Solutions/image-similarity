@@ -119,6 +119,22 @@ def save_submission(model, loader, max_submit_id, path='submission.csv'):
     res.to_csv(path, index=False)
     print(f'Saved test predictions to {path}\n')
 
+
+"""
+    Returns indices of example dataframe in increasing order of example difficulty
+"""
+def sort_example_hardness(df, model, threshold, transform=None, batch_size=32, max_batches=None):
+    with torch.no_grad():
+        if max_batches is not None:
+            df = df[:max_batches * batch_size]
+        loader = DataLoader(ImageDataset(df, transform=transform), batch_size=batch_size, shuffle=False)
+        differences = []
+        for images1, images2, _ in islice(tqdm(loader, desc='Sort example hardness'), max_batches):
+            distance = model.forward(images1.to(model.device), images2.to(model.device)).cpu()
+            differences.append(torch.abs(threshold - distance))
+        differences = torch.cat(differences)
+        return torch.argsort(differences)
+
 """
     Custom Dataset implementation.
 """
@@ -159,7 +175,7 @@ class ImageDataset(Dataset):
             id_ = torch.tensor(id_)
             return image1, image2, id_
         else:
-            assert(false)
+            assert(False)
 
 
 """
