@@ -62,3 +62,5 @@ tzdata==2023.3
 urllib3==2.0.3
 wcwidth==0.2.6
 efficientnet_pytorch==0.7.1
+plotly==5.14.1
+optuna=3.1.1
