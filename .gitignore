@@ -1,13 +1,17 @@
+# Dataset
 data/images/*
-__pycache__/  
+data/images-old/
 images.zip
-.DS_Store
-.ipynb_checkpoints/
 csc-hackathon-2023-lunua-task/
-.idea/
-data.zip
 scripts/parts/*
 urls/*
+
+#
+__pycache__/  
+.DS_Store
+.ipynb_checkpoints/
+.idea/
+data.zip
 
 # Submit predictions
 res.csv
