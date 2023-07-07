@@ -25,11 +25,14 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset
 from torchmetrics.classification import BinaryF1Score
 
+from torchvision.models import resnet152
+from torchvision.models.resnet import ResNet152_Weights
+
 from sklearn.metrics import f1_score
 from sklearn.metrics import confusion_matrix
 from sklearn.linear_model import LogisticRegression
 
-
+import optuna
 
 """
     https://towardsdatascience.com/contrastive-loss-explaned-159f2d4a87ec for more details 
@@ -58,12 +61,17 @@ def evaluate(model, loader, max_batches=None):
     return (pos_f1.compute() + neg_f1.compute()) / 2
 
 
-def train(model, train_loader, train_threshold_loader, valid_loader=None, test_loader=None, epochs=20, lr=1e-4, max_batches=None, verbose=False):
+def train(model, train_loader, train_threshold_loader, valid_loader=None, test_loader=None, optimizer=None, epochs=20, lr=1e-4, max_batches=None, verbose=False):
     criterion = ContrastiveLoss().to(model.device)
-    optimizer = torch.optim.Adam([p for p in model.parameters() if p.requires_grad], lr=lr)
+    if optimizer is None:
+        optimizer = torch.optim.Adam([p for p in model.parameters() if p.requires_grad], lr=lr)
     
     for epoch in range(epochs):
-        for images1, images2, label in tqdm(islice(train_loader, max_batches), desc=f'Epoch {epoch}', total=max_batches):
+        if verbose:
+            loader = tqdm(train_loader, total=max_batches, desc=f'Epoch {epoch}')
+        else:
+            loader = train_loader
+        for images1, images2, label in islice(loader, max_batches):
             model.train()
             images1 = images1.to(model.device)
             images2 = images2.to(model.device)
@@ -127,7 +135,7 @@ def mislabeled(model, loader):
     button = widgets.Button(description="Next Images")
     output = widgets.Output()
 
-    def on_button_clicked():
+    def on_button_clicked(b):
         with output:
             clear_output()
             image1, image2, pred, truth = next(mislabeled_gen)
@@ -137,15 +145,15 @@ def mislabeled(model, loader):
             def denormalize(x):
                 return (x + 1) / 2
 
-            axs[0].imshow(denormalize(image1).clip(0, 244))
+            axs[0].imshow(denormalize(image1).clip(0, 254))
             axs[0].set_title('Image 1')
-            axs[1].imshow(denormalize(image2).clip(0, 244))
+            axs[1].imshow(denormalize(image2).clip(0, 254))
             axs[1].set_title('Image 2')
-            axs[2].imshow(image1.clip(0, 244))
+            axs[2].imshow(image1.clip(0, 1))
             axs[2].set_title('Image 1 Normalised')
-            axs[3].imshow(image2.clip(0, 244))
+            axs[3].imshow(image2.clip(0, 1))
             axs[3].set_title('Image 2 Normalised')
-            axs[4].imshow(np.abs(denormalize(image1 - image2)).clip(0, 244))
+            axs[4].imshow(np.abs(image1 - image2).clip(0, 1))
             axs[4].set_title('Delta')
 
             suptitle = f'Predicted: {pred.item()}\nTruth: {truth.item()}'
@@ -155,13 +163,13 @@ def mislabeled(model, loader):
     button.on_click(on_button_clicked)
     display(button, output)
     mislabeled_gen = mislabeled_inner()
-    on_button_clicked()
+    on_button_clicked(None)
 
 
 """
     Saves predictions that should be submitted to kaggle.
 """
-def save_submission(model, loader, max_submit_id, path='submission.csv'):
+def save_submission(model, loader, max_submit_id, path='data/submission.csv'):
     print(f'Started saving test predictions to {path}')
     ids = []
     preds = []
