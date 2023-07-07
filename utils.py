@@ -29,6 +29,64 @@ from sklearn.metrics import f1_score
 from sklearn.metrics import confusion_matrix
 from sklearn.linear_model import LogisticRegression
 
+
+
+"""
+    https://towardsdatascience.com/contrastive-loss-explaned-159f2d4a87ec for more details 
+"""
+class ContrastiveLoss(nn.Module):
+    def __init__(self, margin=2.0):
+        super(ContrastiveLoss, self).__init__()
+        self.margin = margin
+
+    def forward(self, distance, label):
+        loss_contrastive = torch.mean(label * torch.pow(distance, 2) +
+                                      (1 - label) * torch.pow(torch.clamp(self.margin - distance, min=0), 2))
+
+        return loss_contrastive
+
+
+def evaluate(model, loader, max_batches=None):
+    model.eval()
+    with torch.no_grad():
+        pos_f1 = BinaryF1Score()
+        neg_f1 = BinaryF1Score()
+        for images1, images2, label in islice(loader, max_batches):
+            distance = model.forward(images1.to(model.device), images2.to(model.device)).cpu()
+            pos_f1.update(distance < model.threshold, label)
+            neg_f1.update(distance > model.threshold, 1 - label)
+    return (pos_f1.compute() + neg_f1.compute()) / 2
+
+
+def train(model, train_loader, train_threshold_loader, valid_loader=None, test_loader=None, epochs=20, lr=1e-4, max_batches=None, print_fscore=False):
+    criterion = ContrastiveLoss().to(model.device)
+    optimizer = torch.optim.Adam([p for p in model.parameters() if p.requires_grad], lr=lr)
+    desc = 'Started training. Epoch 0'
+    
+    for epoch in range(epochs):
+        for images1, images2, label in tqdm(islice(train_loader, max_batches), desc=desc, total=max_batches):
+            model.train()
+            images1 = images1.to(model.device)
+            images2 = images2.to(model.device)
+            label = label.to(model.device)
+
+            optimizer.zero_grad()
+            outputs = model.forward(images1, images2)
+            loss = criterion(outputs, label)
+            loss.backward()
+            optimizer.step()
+
+            desc = f'Epoch: {epoch}\nLoss          : {loss.item():.6f}'
+
+        model.update_threshold(train_threshold_loader, max_batches=max_batches)
+        
+        if print_fscore:
+            print(f'Train fscore  : {evaluate(model, train_loader, max_batches=max_batches):.4f}')
+            print(f'Valid fscore  : {evaluate(model, valid_loader, max_batches=max_batches):.4f}')
+    if print_fscore:
+        print(f'Test fscore   : {evaluate(model, test_loader, max_batches=max_batches):.4f}')
+
+
 """
     Helper functions for splitting pandas dataframes and denormalizing tensors.
 """
@@ -103,7 +161,7 @@ def save_submission(model, loader, max_submit_id, path='submission.csv'):
     ids = []
     preds = []
         
-    for images1, images2, id_ in tqdm(loader):
+    for images1, images2, id_ in tqdm(loader, desc='Saving submission predictions'):
         preds.extend(model.predict(images1, images2))
         ids.extend(id_)
         
@@ -129,7 +187,7 @@ def sort_example_hardness(df, model, threshold, transform=None, batch_size=32, m
             df = df[:max_batches * batch_size]
         loader = DataLoader(ImageDataset(df, transform=transform), batch_size=batch_size, shuffle=False)
         differences = []
-        for images1, images2, _ in islice(tqdm(loader, desc='Sort example hardness'), max_batches):
+        for images1, images2, _ in tqdm(islice(loader, max_batches), desc='Sort example hardness', total=max_batches):
             distance = model.forward(images1.to(model.device), images2.to(model.device)).cpu()
             differences.append(torch.abs(threshold - distance))
         differences = torch.cat(differences)
