@@ -58,13 +58,12 @@ def evaluate(model, loader, max_batches=None):
     return (pos_f1.compute() + neg_f1.compute()) / 2
 
 
-def train(model, train_loader, train_threshold_loader, valid_loader=None, test_loader=None, epochs=20, lr=1e-4, max_batches=None, print_fscore=False):
+def train(model, train_loader, train_threshold_loader, valid_loader=None, test_loader=None, epochs=20, lr=1e-4, max_batches=None, verbose=False):
     criterion = ContrastiveLoss().to(model.device)
     optimizer = torch.optim.Adam([p for p in model.parameters() if p.requires_grad], lr=lr)
-    desc = 'Started training. Epoch 0'
     
     for epoch in range(epochs):
-        for images1, images2, label in tqdm(islice(train_loader, max_batches), desc=desc, total=max_batches):
+        for images1, images2, label in tqdm(islice(train_loader, max_batches), desc=f'Epoch {epoch}', total=max_batches):
             model.train()
             images1 = images1.to(model.device)
             images2 = images2.to(model.device)
@@ -76,14 +75,14 @@ def train(model, train_loader, train_threshold_loader, valid_loader=None, test_l
             loss.backward()
             optimizer.step()
 
-            desc = f'Epoch: {epoch}\nLoss          : {loss.item():.6f}'
-
         model.update_threshold(train_threshold_loader, max_batches=max_batches)
         
-        if print_fscore:
+        if verbose:
+            print(f'Epoch         : {epoch}')
+            print(f'Loss          : {loss.item():.6f}')
             print(f'Train fscore  : {evaluate(model, train_loader, max_batches=max_batches):.4f}')
             print(f'Valid fscore  : {evaluate(model, valid_loader, max_batches=max_batches):.4f}')
-    if print_fscore:
+    if verbose:
         print(f'Test fscore   : {evaluate(model, test_loader, max_batches=max_batches):.4f}')
 
 
