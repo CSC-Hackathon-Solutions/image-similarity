@@ -7,6 +7,7 @@ from io import BytesIO
 from PIL import Image
 import os
 from itertools import islice
+from typing import Literal
 
 from tqdm.auto import tqdm
 import matplotlib.pyplot as plt
@@ -23,7 +24,7 @@ import torch.nn as nn
 import torchvision.transforms as T
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset
-from torchmetrics.classification import BinaryF1Score
+from torchmetrics.classification import BinaryF1Score, BinaryConfusionMatrix
 
 from sklearn.metrics import f1_score
 from sklearn.metrics import confusion_matrix
@@ -86,6 +87,17 @@ def train(model, train_loader, train_threshold_loader, valid_loader=None, test_l
         print(f'Test fscore   : {evaluate(model, test_loader, max_batches=max_batches):.4f}')
 
 
+def calc_confusion_matrix(model, loader, max_batches=None):
+    model.eval()
+    with torch.no_grad():
+        result = BinaryConfusionMatrix()
+        for images1, images2, label in tqdm(islice(loader, max_batches), 
+                                            desc=f'Computing confusion matrix', total=max_batches):
+            result.update(model.predict(images1.to(model.device), images2.to(model.device)).cpu(), label)
+    return result.compute()
+        
+
+
 """
     Helper functions for splitting pandas dataframes and denormalizing tensors.
 """
@@ -120,11 +132,18 @@ def test_loader_images(loader):
 """
     Tries to find and show mislabeled images from the specified loader.
 """
-def mislabeled(model, loader):
+def mislabeled(model, loader, mislabeled_type: Literal['pred_true', 'pred_false', 'all'] = 'all'):
     def mislabeled_inner():
         for images1, images2, equal in loader:
             preds = model.predict(images1, images2)
-            for index in (preds != equal).nonzero().reshape(-1).tolist():
+            if mislabeled_type:
+                if mislabeled_type == 'pred_true':
+                    mask = (preds == 1) & (equal == 0)
+                else:
+                    mask = (preds == 0) & (equal == 1)
+            else:
+                mask = preds != equal
+            for index in mask.nonzero().reshape(-1).tolist():
                 yield (images1[index], images2[index], preds[index], equal[index])
 
     button = widgets.Button(description="Next Images")
@@ -178,7 +197,7 @@ def save_submission(model, loader, max_submit_id, path='submission.csv'):
 
 
 """
-    Returns indices of example dataframe in increasing order of example difficulty
+    Returns indices of example dataframe in decreasing order of example difficulty
 """
 def sort_example_hardness(df, model, threshold, transform=None, batch_size=32, max_batches=None):
     with torch.no_grad():
