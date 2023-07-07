@@ -95,9 +95,6 @@ def split_dataframe(df, ratio, shuffle=True):
         df = df.sample(frac=1)
     return np.split(df, (np.cumsum(ratio[:-1]) * df.shape[0]).astype(int))
 
-def denormalize_tensor(img):
-    return (img.permute(1, 2, 0) + 1) / 2
-
 """
     Test whether loaders are working.
 """
@@ -130,26 +127,35 @@ def mislabeled(model, loader):
     button = widgets.Button(description="Next Images")
     output = widgets.Output()
 
-    def on_button_clicked(b):
+    def on_button_clicked():
         with output:
             clear_output()
             image1, image2, pred, truth = next(mislabeled_gen)
-            fig, axs = plt.subplots(1, 3, figsize=(14,7))
-            axs[0].imshow(denormalize_tensor(image1))
-            axs[1].imshow(denormalize_tensor(image2))
-            axs[2].imshow(np.abs(denormalize_tensor(image1 - image2)))
+            fig, axs = plt.subplots(1, 5, figsize=(16,6))
+            image1, image2 = image1.permute(1, 2, 0), image2.permute(1,2,0)
+            
+            def denormalize(x):
+                return (x + 1) / 2
+
+            axs[0].imshow(denormalize(image1).clip(0, 244))
+            axs[0].set_title('Image 1')
+            axs[1].imshow(denormalize(image2).clip(0, 244))
+            axs[1].set_title('Image 2')
+            axs[2].imshow(image1.clip(0, 244))
+            axs[2].set_title('Image 1 Normalised')
+            axs[3].imshow(image2.clip(0, 244))
+            axs[3].set_title('Image 2 Normalised')
+            axs[4].imshow(np.abs(denormalize(image1 - image2)).clip(0, 244))
+            axs[4].set_title('Delta')
+
             suptitle = f'Predicted: {pred.item()}\nTruth: {truth.item()}'
-            # try:
-            #     suptitle += f'\nmodel.forward(): {model.forward(image1, image2)}'
-            # except:
-            #     pass
             fig.suptitle(suptitle)
             plt.show()
 
     button.on_click(on_button_clicked)
     display(button, output)
     mislabeled_gen = mislabeled_inner()
-    on_button_clicked(None)  # show the first images
+    on_button_clicked()
 
 
 """
