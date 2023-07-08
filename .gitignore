@@ -15,3 +15,5 @@ data.zip
 
 # Submit predictions
 res.csv
+data/submission.csv
+data/new-submission.csv

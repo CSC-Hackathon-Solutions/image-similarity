@@ -35,6 +35,14 @@ from sklearn.linear_model import LogisticRegression
 
 import optuna
 
+def tqdm_loader(loader, desc=None, max_batches=None):
+    if max_batches is None:
+        total = len(loader)
+    else:
+        total = min(max_batches, len(loader))
+    return tqdm(islice(loader, max_batches), desc=desc, total=total)
+
+
 """
     https://towardsdatascience.com/contrastive-loss-explaned-159f2d4a87ec for more details 
 """
@@ -50,29 +58,33 @@ class ContrastiveLoss(nn.Module):
         return loss_contrastive
 
 
-def evaluate(model, loader, max_batches=None):
+def evaluate(model, loader, max_batches=None, show_progress_bar=True):
     model.eval()
     with torch.no_grad():
         pos_f1 = BinaryF1Score()
         neg_f1 = BinaryF1Score()
-        for images1, images2, label in islice(loader, max_batches):
+        if show_progress_bar:
+            loader = tqdm_loader(loader, max_batches=max_batches, desc='Evaluating')
+        for images1, images2, label in loader:
             distance = model.forward(images1.to(model.device), images2.to(model.device)).cpu()
             pos_f1.update(distance < model.threshold, label)
             neg_f1.update(distance > model.threshold, 1 - label)
     return (pos_f1.compute() + neg_f1.compute()) / 2
 
 
-def train(model, train_loader, train_threshold_loader, valid_loader=None, test_loader=None, optimizer=None, epochs=20, lr=1e-4, max_batches=None, verbose=False):
+def train(model, train_loader, train_threshold_loader, valid_loader=None, test_loader=None, optimizer=None, epochs=20, lr=1e-4, max_batches=None, verbose=False, show_progress_bar=True):
     criterion = ContrastiveLoss().to(model.device)
     if optimizer is None:
         optimizer = torch.optim.Adam([p for p in model.parameters() if p.requires_grad], lr=lr)
     
     for epoch in range(epochs):
-        if verbose:
-            loader = tqdm(train_loader, total=max_batches, desc=f'Epoch {epoch}')
+        if show_progress_bar:
+            # TODO why we have to take max_batches - 1 here ??? 
+            # Denys Zinoviev
+            loader = tqdm_loader(train_loader, max_batches=max_batches, desc=f'Epoch {epoch}')
         else:
             loader = train_loader
-        for images1, images2, label in islice(loader, max_batches):
+        for images1, images2, label in loader:
             model.train()
             images1 = images1.to(model.device)
             images2 = images2.to(model.device)
@@ -99,16 +111,16 @@ def calc_confusion_matrix(model, loader, max_batches=None):
     model.eval()
     with torch.no_grad():
         result = BinaryConfusionMatrix()
-        for images1, images2, label in tqdm(islice(loader, max_batches), 
-                                            desc=f'Computing confusion matrix', total=max_batches):
+        for images1, images2, label in tqdm_loader(loader, max_batches=max_batches, 
+                                                   desc=f'Computing confusion matrix'):
             result.update(model.predict(images1.to(model.device), images2.to(model.device)).cpu(), label)
-    return result.compute()
-        
+    return result.compute()  
 
 
-"""
-    Helper functions for splitting pandas dataframes and denormalizing tensors.
-"""
+def convert_for_imshow(x):
+    return (x.permute(1, 2, 0) + 1) / 2
+
+
 def split_dataframe(df, ratio, shuffle=True):
     assert(sum(ratio) == 1)
     if shuffle:
@@ -125,10 +137,10 @@ def test_loader_images(loader):
     image2 = image2[0]
     _, axs = plt.subplots(1, 2, figsize=(15, 15))
 
-    axs[0].imshow(denormalize_tensor(image1))
+    axs[0].imshow(convert_for_imshow(image1))
     axs[0].set_title('Image 1')
     axs[0].axis('off')
-    axs[1].imshow(denormalize_tensor(image2))
+    axs[1].imshow(convert_for_imshow(image2))
     axs[1].set_title('Image 2')
     axs[1].axis('off')
     plt.show()
@@ -158,22 +170,14 @@ def mislabeled(model, loader, mislabeled_type: Literal['pred_true', 'pred_false'
         with output:
             clear_output()
             image1, image2, pred, truth = next(mislabeled_gen)
-            fig, axs = plt.subplots(1, 5, figsize=(16,6))
-            image1, image2 = image1.permute(1, 2, 0), image2.permute(1,2,0)
-            
-            def denormalize(x):
-                return (x + 1) / 2
+            fig, axs = plt.subplots(1, 3, figsize=(16,4))
 
-            axs[0].imshow(denormalize(image1).clip(0, 254))
+            axs[0].imshow(convert_for_imshow(image1))
             axs[0].set_title('Image 1')
-            axs[1].imshow(denormalize(image2).clip(0, 254))
+            axs[1].imshow(convert_for_imshow(image2))
             axs[1].set_title('Image 2')
-            axs[2].imshow(image1.clip(0, 1))
-            axs[2].set_title('Image 1 Normalised')
-            axs[3].imshow(image2.clip(0, 1))
-            axs[3].set_title('Image 2 Normalised')
-            axs[4].imshow(np.abs(image1 - image2).clip(0, 1))
-            axs[4].set_title('Delta')
+            axs[2].imshow(convert_for_imshow(torch.abs(image1 - image2)))
+            axs[2].set_title('Delta')
 
             suptitle = f'Predicted: {pred.item()}\nTruth: {truth.item()}'
             fig.suptitle(suptitle)
@@ -193,19 +197,20 @@ def save_submission(model, loader, max_submit_id, path='data/submission.csv'):
     ids = []
     preds = []
         
-    for images1, images2, id_ in tqdm(loader, desc='Saving submission predictions'):
+    for images1, images2, id_ in tqdm_loader(loader, desc='Saving submission predictions'):
         preds.extend(model.predict(images1, images2))
         ids.extend(id_)
         
-    all_ids = pd.DataFrame({
-        'ID': range(2, max_submit_id + 1),
-    })
+    # all_ids = pd.DataFrame({
+    #     'ID': range(2, max_submit_id + 1),
+    # })
     res = pd.DataFrame({
         'ID': [obj.item() for obj in ids],
-        'is_same': [obj.item() for obj in preds]
+        'same': [obj.item() for obj in preds],
+        'different': [1 - obj.item() for obj in preds]
     }).drop_duplicates()
 
-    res = all_ids.merge(res, on='ID', how='left').fillna(0)
+    # res = all_ids.merge(res, on='ID', how='left').fillna(0)
     res.to_csv(path, index=False)
     print(f'Saved test predictions to {path}\n')
 
@@ -219,7 +224,7 @@ def sort_example_hardness(df, model, threshold, transform=None, batch_size=32, m
             df = df[:max_batches * batch_size]
         loader = DataLoader(ImageDataset(df, transform=transform), batch_size=batch_size, shuffle=False)
         differences = []
-        for images1, images2, _ in tqdm(islice(loader, max_batches), desc='Sort example hardness', total=max_batches):
+        for images1, images2, _ in tqdm_loader(loader, max_batches=max_batches, desc='Sort example hardness'):
             distance = model.forward(images1.to(model.device), images2.to(model.device)).cpu()
             differences.append(torch.abs(threshold - distance))
         differences = torch.cat(differences)
