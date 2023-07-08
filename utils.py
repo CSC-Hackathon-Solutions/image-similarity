@@ -117,7 +117,7 @@ def calc_confusion_matrix(model, loader, max_batches=None):
     return result.compute()  
 
 
-def denormalize_tensor(x):
+def convert_for_imshow(x):
     return (x.permute(1, 2, 0) + 1) / 2
 
 
@@ -137,10 +137,10 @@ def test_loader_images(loader):
     image2 = image2[0]
     _, axs = plt.subplots(1, 2, figsize=(15, 15))
 
-    axs[0].imshow(denormalize_tensor(image1))
+    axs[0].imshow(convert_for_imshow(image1))
     axs[0].set_title('Image 1')
     axs[0].axis('off')
-    axs[1].imshow(denormalize_tensor(image2))
+    axs[1].imshow(convert_for_imshow(image2))
     axs[1].set_title('Image 2')
     axs[1].axis('off')
     plt.show()
@@ -170,19 +170,14 @@ def mislabeled(model, loader, mislabeled_type: Literal['pred_true', 'pred_false'
         with output:
             clear_output()
             image1, image2, pred, truth = next(mislabeled_gen)
-            fig, axs = plt.subplots(1, 5, figsize=(16,4))
-            image1, image2 = image1.permute(1, 2, 0), image2.permute(1,2,0)
+            fig, axs = plt.subplots(1, 3, figsize=(16,4))
 
-            axs[0].imshow(denormalize_tensor(image1).clip(0, 254))
+            axs[0].imshow(convert_for_imshow(image1))
             axs[0].set_title('Image 1')
-            axs[1].imshow(denormalize_tensor(image2).clip(0, 254))
+            axs[1].imshow(convert_for_imshow(image2))
             axs[1].set_title('Image 2')
-            axs[2].imshow(image1.clip(0, 1))
-            axs[2].set_title('Image 1 Normalised')
-            axs[3].imshow(image2.clip(0, 1))
-            axs[3].set_title('Image 2 Normalised')
-            axs[4].imshow(np.abs(image1 - image2).clip(0, 1))
-            axs[4].set_title('Delta')
+            axs[2].imshow(convert_for_imshow(torch.abs(image1 - image2)))
+            axs[2].set_title('Delta')
 
             suptitle = f'Predicted: {pred.item()}\nTruth: {truth.item()}'
             fig.suptitle(suptitle)
