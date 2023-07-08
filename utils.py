@@ -62,14 +62,16 @@ def evaluate(model, loader, max_batches=None):
     return (pos_f1.compute() + neg_f1.compute()) / 2
 
 
-def train(model, train_loader, train_threshold_loader, valid_loader=None, test_loader=None, optimizer=None, epochs=20, lr=1e-4, max_batches=None, verbose=False):
+def train(model, train_loader, train_threshold_loader, valid_loader=None, test_loader=None, optimizer=None, epochs=20, lr=1e-4, max_batches=None, verbose=False, show_progress_bar=True):
     criterion = ContrastiveLoss().to(model.device)
     if optimizer is None:
         optimizer = torch.optim.Adam([p for p in model.parameters() if p.requires_grad], lr=lr)
     
     for epoch in range(epochs):
-        if verbose:
-            loader = tqdm(train_loader, total=max_batches, desc=f'Epoch {epoch}')
+        if show_progress_bar:
+            # TODO why we have to take max_batches - 1 here ??? 
+            # Denys Zinoviev
+            loader = tqdm(train_loader, total=max_batches - 1, desc=f'Epoch {epoch}')
         else:
             loader = train_loader
         for images1, images2, label in islice(loader, max_batches):
@@ -158,7 +160,7 @@ def mislabeled(model, loader, mislabeled_type: Literal['pred_true', 'pred_false'
         with output:
             clear_output()
             image1, image2, pred, truth = next(mislabeled_gen)
-            fig, axs = plt.subplots(1, 5, figsize=(16,6))
+            fig, axs = plt.subplots(1, 5, figsize=(16,4))
             image1, image2 = image1.permute(1, 2, 0), image2.permute(1,2,0)
             
             def denormalize(x):
@@ -197,15 +199,16 @@ def save_submission(model, loader, max_submit_id, path='data/submission.csv'):
         preds.extend(model.predict(images1, images2))
         ids.extend(id_)
         
-    all_ids = pd.DataFrame({
-        'ID': range(2, max_submit_id + 1),
-    })
+    # all_ids = pd.DataFrame({
+    #     'ID': range(2, max_submit_id + 1),
+    # })
     res = pd.DataFrame({
         'ID': [obj.item() for obj in ids],
-        'is_same': [obj.item() for obj in preds]
+        'same': [obj.item() for obj in preds],
+        'different': [1 - obj.item() for obj in preds]
     }).drop_duplicates()
 
-    res = all_ids.merge(res, on='ID', how='left').fillna(0)
+    # res = all_ids.merge(res, on='ID', how='left').fillna(0)
     res.to_csv(path, index=False)
     print(f'Saved test predictions to {path}\n')
 
