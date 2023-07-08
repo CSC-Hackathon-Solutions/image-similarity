@@ -72,10 +72,10 @@ def evaluate(model, loader, max_batches=None, show_progress_bar=True):
     return (pos_f1.compute() + neg_f1.compute()) / 2
 
 
-def train(model, train_loader, train_threshold_loader, valid_loader=None, test_loader=None, optimizer=None, epochs=20, lr=1e-4, max_batches=None, verbose=False, show_progress_bar=True):
+def train(model, train_loader, train_threshold_loader, valid_loader=None, test_loader=None, optimizer=None, epochs=20, lr=1e-4, weight_decay=0, max_batches=None, verbose=False, show_progress_bar=True):
     criterion = ContrastiveLoss().to(model.device)
     if optimizer is None:
-        optimizer = torch.optim.Adam([p for p in model.parameters() if p.requires_grad], lr=lr)
+        optimizer = torch.optim.Adam([p for p in model.parameters() if p.requires_grad], lr=lr, weight_decay=weight_decay)
     
     for epoch in range(epochs):
         if show_progress_bar:
