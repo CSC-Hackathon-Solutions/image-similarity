@@ -79,6 +79,7 @@ def train(model, train_loader, train_threshold_loader, valid_loader=None, test_l
         optimizer = torch.optim.Adam([p for p in model.parameters() if p.requires_grad], lr=lr, weight_decay=weight_decay)
     
     start_time = time.time()
+    losses = {}
     
     for epoch in range(epochs):
         if show_progress_bar:
@@ -87,7 +88,7 @@ def train(model, train_loader, train_threshold_loader, valid_loader=None, test_l
             loader = tqdm_loader(train_loader, max_batches=max_batches, desc=f'Epoch {epoch}')
         else:
             loader = train_loader
-        for images1, images2, label in loader:
+        for i, (images1, images2, label) in enumerate(loader):
             model.train()
             images1 = images1.to(model.device)
             images2 = images2.to(model.device)
@@ -99,6 +100,8 @@ def train(model, train_loader, train_threshold_loader, valid_loader=None, test_l
             loss.backward()
             optimizer.step()
 
+            losses[epoch * max_batches + i] = loss.detach().cpu().numpy()
+
         model.update_threshold(train_threshold_loader, max_batches=max_batches)
         
         if verbose:
@@ -106,11 +109,26 @@ def train(model, train_loader, train_threshold_loader, valid_loader=None, test_l
             print(f'Loss          : {loss.item():.6f}')
             print(f'Train fscore  : {evaluate(model, train_loader, max_batches=max_batches):.4f}')
             print(f'Valid fscore  : {evaluate(model, valid_loader, max_batches=max_batches):.4f}')
+            
     if verbose:
         print(f'Test fscore   : {evaluate(model, test_loader, max_batches=max_batches):.4f}')
+
+        batches = list(losses.keys())
+        loss_values = list(losses.values())
         
-    if not verbose:
-        print('Total training time:', time.time() - start_time)
+        plt.figure(figsize=(10, 6))
+        
+        # create line plot
+        plt.plot(batches, loss_values, label='Loss')
+        
+        plt.xlabel('Batch Number')
+        plt.ylabel('Loss')
+        plt.title('Loss vs. Batch Number')
+        plt.legend()
+        
+        plt.show()
+        
+    print('Total training time:', time.time() - start_time)
         
     
 
