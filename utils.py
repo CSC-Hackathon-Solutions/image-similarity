@@ -8,6 +8,7 @@ from PIL import Image
 import os
 from itertools import islice
 from typing import Literal
+import time
 
 from tqdm.auto import tqdm
 import matplotlib.pyplot as plt
@@ -77,6 +78,8 @@ def train(model, train_loader, train_threshold_loader, valid_loader=None, test_l
     if optimizer is None:
         optimizer = torch.optim.Adam([p for p in model.parameters() if p.requires_grad], lr=lr, weight_decay=weight_decay)
     
+    start_time = time.time()
+    
     for epoch in range(epochs):
         if show_progress_bar:
             # TODO why we have to take max_batches - 1 here ??? 
@@ -105,6 +108,11 @@ def train(model, train_loader, train_threshold_loader, valid_loader=None, test_l
             print(f'Valid fscore  : {evaluate(model, valid_loader, max_batches=max_batches):.4f}')
     if verbose:
         print(f'Test fscore   : {evaluate(model, test_loader, max_batches=max_batches):.4f}')
+        
+    if not verbose:
+        print('Total training time:', time.time() - start_time)
+        
+    
 
 
 def calc_confusion_matrix(model, loader, max_batches=None):
@@ -196,7 +204,9 @@ def save_submission(model, loader, max_submit_id, path='data/submission.csv'):
     print(f'Started saving test predictions to {path}')
     ids = []
     preds = []
-        
+    
+    start_time = time.time()
+    
     for images1, images2, id_ in tqdm_loader(loader, desc='Saving submission predictions'):
         preds.extend(model.predict(images1, images2))
         ids.extend(id_)
@@ -209,6 +219,8 @@ def save_submission(model, loader, max_submit_id, path='data/submission.csv'):
         'same': [obj.item() for obj in preds],
         'different': [1 - obj.item() for obj in preds]
     }).drop_duplicates()
+    
+    print('Total prediction time: ', time.time() - start_time)
 
     # res = all_ids.merge(res, on='ID', how='left').fillna(0)
     res.to_csv(path, index=False)
