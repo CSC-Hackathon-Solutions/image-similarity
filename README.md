@@ -3,9 +3,16 @@
 That is our attempt on solving the CSC Hackathon 2023 problem provided by LUN.UA
 
 ## Results  🚀
-|      Model      |  Fscore  |
-| :-------------: | :-------: |
-|    `ResNet152`  |  `0.997`  |
+```
+training was done on 32000 samples
+
+              precision    recall  f1-score   support
+           0    0.99825   0.99935   0.99880     15431
+           1    0.99861   0.99627   0.99744      7229
+    accuracy                        0.99837     22660
+   macro avg    0.99843   0.99781   0.99812     22660
+weighted avg    0.99837   0.99837   0.99837     22660
+```
 
 
 ## Brief model desciption 🔍
