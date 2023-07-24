@@ -1,4 +1,4 @@
-# image-similarity  🪞
+# near-duplicate images detection  🪞
 
 That is our attempt on solving the CSC Hackathon 2023 [problem provided by LUN.UA](https://www.kaggle.com/competitions/csc-hackathon-2023-lunua-task)
 
